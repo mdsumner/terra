@@ -606,7 +606,7 @@ SpatRaster SpatRaster::warper(SpatRaster x, std::string crs, std::string method,
 }
 
 
-SpatRaster SpatRaster::warper_by_util(SpatRaster x,  std::string method, bool mask,  SpatOptions &opt) {
+SpatRaster SpatRaster::warper_by_util(SpatRaster x,  std::string method, bool mask, bool align,  SpatOptions &opt) {
 
 	size_t ns = nsrc();
 	bool fixext = false;
@@ -661,7 +661,37 @@ if (srccrs.empty()) {
 }
 	SpatOptions sopt(opt);
 
-	
+std::string crs; 
+if (align) {
+	crs = out.getSRS("wkt");
+	GDALDatasetH hSrcDS;
+		SpatRaster g = geometry(1);
+		if (!g.open_gdal(hSrcDS, 0, false, sopt)) {
+			out.setError("cannot create dataset from source");
+			return out;
+		}
+		out.setSRS(crs);
+		if (!get_output_bounds(hSrcDS, srccrs, crs, out)) {
+			GDALClose( hSrcDS );
+			out.setError("cannot get output boundaries");
+			return out;
+		}
+		GDALClose( hSrcDS );
+		
+		
+		SpatExtent e = out.getExtent();
+		e = x.align(e, "out");
+		out.setExtent(e, false, true, "");
+		std::vector<double> res = x.resolution();
+		out = out.setResolution(res[0], res[1]);
+		
+	}
+
+
+
+
+
+
 	opt.ncopies += 4;
 	if (!out.writeStart(opt, filenames())) {
 		return out;
