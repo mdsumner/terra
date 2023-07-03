@@ -606,7 +606,8 @@ SpatRaster SpatRaster::warper(SpatRaster x, std::string crs, std::string method,
 }
 
 
-SpatRaster SpatRaster::warper_by_util(SpatRaster x,  std::string method, bool mask, bool align,  SpatOptions &opt) {
+SpatRaster SpatRaster::warper_by_util(SpatRaster x, std::string crs, std::string method, bool mask, bool align, bool resample, SpatOptions &opt) {
+	
 
 	size_t ns = nsrc();
 	bool fixext = false;
@@ -616,26 +617,32 @@ SpatRaster SpatRaster::warper_by_util(SpatRaster x,  std::string method, bool ma
 			break;
 		}
 	}
-	SpatRaster out = x.geometry(nlyr(), false, false);
-	
 	if (fixext) {
-		out.setError("no setext via this pathway (FIXME: do we have a gdalwarp = TRUE/FALSE arg for project()?)");
-		return out;
+		SpatRaster r = *this;
+		for (size_t j=0; j<ns; j++) {
+			if (r.source[j].extset && (!r.source[j].memory)) {
+				SpatRaster tmp(source[j]);
+				//if (tmp.canProcessInMemory(opt)) {
+				//	tmp.readAll();
+				//} else {
+				tmp = tmp.writeTempRaster(opt);
+				r.source[j] = tmp.source[0]; 
+			}
+		}
+		return r.warper_by_util(x, crs, method, mask, align, resample, opt);
 	}
+	
+	
+	SpatRaster out = x.geometry(nlyr(), false, false);
 	if (!is_valid_warp_method(method)) {
 		out.setError("not a valid warp method");
 		return out;
 	}
-	
-	SpatOptions mopt;
-	if (mask) {
-		mopt = opt;
-		opt = SpatOptions(opt);
+	std::string srccrs = getSRS("wkt");
+	if (resample) {
+		out.setSRS(srccrs);
 	}
 	
-	
-	std::string srccrs = getSRS("wkt");
-
 	out.setNames(getNames());
 	if (method == "near") {
 		out.source[0].hasColors = hasColors();
@@ -653,18 +660,32 @@ SpatRaster SpatRaster::warper_by_util(SpatRaster x,  std::string method, bool ma
 		out.source[0].time = getTime();
 	}
 	
-
-if (srccrs.empty()) {
-			// FIXME: this is overbearing because the warper can auto-use geolocation arrays
-			//out.setError("input raster CRS not set");
-			//return out;
-}
+	bool use_crs = !crs.empty();
+	if (use_crs) {
+		align = false;
+		resample = false;
+	} else if (!hasValues()) {
+		std::string fname = opt.get_filename();
+		if (!fname.empty()) {
+			out.addWarning("raster has no values, not writing to file");
+		}
+		return out;
+	}
+	if (align) {
+		crs = out.getSRS("wkt");
+	}
+	
+	if (!resample) {
+		if (srccrs.empty()) {
+			out.setError("input raster CRS not set");
+			return out;
+		}
+	}
+	
+	lrtrim(crs);
 	SpatOptions sopt(opt);
-
-std::string crs; 
-if (align) {
-	crs = out.getSRS("wkt");
-	GDALDatasetH hSrcDS;
+	if (use_crs || align) {
+		GDALDatasetH hSrcDS;
 		SpatRaster g = geometry(1);
 		if (!g.open_gdal(hSrcDS, 0, false, sopt)) {
 			out.setError("cannot create dataset from source");
@@ -677,21 +698,47 @@ if (align) {
 			return out;
 		}
 		GDALClose( hSrcDS );
-		
-		
+	} else if (!resample) {
+		OGRSpatialReference source, target;
+		const char *pszDefFrom = srccrs.c_str();
+		OGRErr erro = source.SetFromUserInput(pszDefFrom);
+		if (erro != OGRERR_NONE) {
+			out.setError("input crs is not valid");
+			return out;
+		}
+		std::string targetcrs = out.getSRS("wkt");
+		const char *pszDefTo = targetcrs.c_str();
+		erro = target.SetFromUserInput(pszDefTo);
+		if (erro != OGRERR_NONE) {
+			out.setError("output crs is not valid");
+			return out;
+		}
+		OGRCoordinateTransformation *poCT;
+		poCT = OGRCreateCoordinateTransformation(&source, &target);
+		if( poCT == NULL )	{
+			out.setError( "Cannot do this transformation" );
+			return(out);
+		}
+		OCTDestroyCoordinateTransformation(poCT);
+	}
+	
+	if (align) {
 		SpatExtent e = out.getExtent();
 		e = x.align(e, "out");
 		out.setExtent(e, false, true, "");
 		std::vector<double> res = x.resolution();
 		out = out.setResolution(res[0], res[1]);
-		
 	}
-
-
-
-
-
-
+	if (!hasValues()) {
+		return out;
+	}
+	
+	SpatOptions mopt;
+	if (mask) {
+		mopt = opt;
+		opt = SpatOptions(opt);
+	}
+	
 	opt.ncopies += 4;
 	if (!out.writeStart(opt, filenames())) {
 		return out;
@@ -718,7 +765,6 @@ if (align) {
 		SpatRaster crop_out = out.crop(eout, "near", false, sopt);
 		GDALDatasetH hDstDS;
 		GDALDatasetH hWarpedDS;
-		// here we could set up DS with filename and driver, write that out in the GDALwarp() and set the rast to it		
 		if (!crop_out.create_gdalDS(hDstDS, "", "MEM", false, NAN, has_so, scale, offset, sopt)) {
 			return crop_out;
 		}
@@ -772,15 +818,15 @@ if (align) {
 			if( hSrcDS != NULL ) GDALClose( (GDALDatasetH) hSrcDS );
 			
 		}
-			bool ok = crop_out.from_gdalMEM(hWarpedDS, false, true);
-			if( hWarpedDS != NULL ) GDALClose( (GDALDatasetH) hWarpedDS );
+		
+		bool ok = crop_out.from_gdalMEM(hWarpedDS, false, true);
+		if( hWarpedDS != NULL ) GDALClose( (GDALDatasetH) hWarpedDS );
 		if (!ok) {
 			out.setError("cannot do this transformation (warp)");
 			return out;
 		}
 		std::vector<double> v = crop_out.getValues(-1, opt);
 		if (!out.writeBlock(v, i)) return out;
-	
 	}
 	out.writeStop();
 	if (mask) {
@@ -794,6 +840,7 @@ if (align) {
 	}
 	return out;
 }
+
 
 
 
