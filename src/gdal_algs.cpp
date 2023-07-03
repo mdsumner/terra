@@ -606,7 +606,7 @@ SpatRaster SpatRaster::warper(SpatRaster x, std::string crs, std::string method,
 }
 
 
-SpatRaster SpatRaster::warper_by_util(SpatRaster x,  std::string method,  SpatOptions &opt) {
+SpatRaster SpatRaster::warper_by_util(SpatRaster x,  std::string method, bool mask,  SpatOptions &opt) {
 
 	size_t ns = nsrc();
 	bool fixext = false;
@@ -626,6 +626,14 @@ SpatRaster SpatRaster::warper_by_util(SpatRaster x,  std::string method,  SpatOp
 		out.setError("not a valid warp method");
 		return out;
 	}
+	
+	SpatOptions mopt;
+	if (mask) {
+		mopt = opt;
+		opt = SpatOptions(opt);
+	}
+	
+	
 	std::string srccrs = getSRS("wkt");
 
 	out.setNames(getNames());
@@ -745,7 +753,15 @@ if (srccrs.empty()) {
 	
 	}
 	out.writeStop();
-
+	if (mask) {
+		SpatVector v = dense_extent(true, true);
+		v = v.project(out.getSRS("wkt"), true);
+		if (v.nrow() > 0) {
+			out = out.mask(v, false, NAN, true, mopt);
+		} else {
+			out.addWarning("masking failed");
+		}
+	}
 	return out;
 }
 

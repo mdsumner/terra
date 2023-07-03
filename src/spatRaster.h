@@ -806,7 +806,7 @@ class SpatRaster {
 		SpatRaster weighted_mean(std::vector<double> w, bool narm, SpatOptions &opt);
 
 		SpatRaster warper(SpatRaster x, std::string crs, std::string method, bool mask, bool align, bool resample, SpatOptions &opt);
-		SpatRaster warper_by_util(SpatRaster x, std::string method, SpatOptions &opt);
+		SpatRaster warper_by_util(SpatRaster x, std::string method, bool mask, SpatOptions &opt);
 		
 		SpatRaster resample(SpatRaster x, std::string method, bool mask, bool agg, SpatOptions &opt);
 		
