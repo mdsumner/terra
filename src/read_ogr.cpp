@@ -461,6 +461,7 @@ bool layerQueryFilter(GDALDataset *&poDS, OGRLayer *&poLayer, std::string &layer
 		}
 	} else {
 	  const char* pszDialect = dialect.c_str();
+	  Rcpp::print(Rcpp::CharacterVector::create(pszDialect)); 
 		poLayer = poDS->ExecuteSQL(query.c_str(), NULL, pszDialect);
 		if (poLayer == NULL) {
 			errmsg = "Query failed";
@@ -716,7 +717,7 @@ bool SpatVector::read_ogr(GDALDataset *&poDS, std::string layer, std::string que
 		SpatVectorCollection sv;
 		std::vector<double> dempty;
 		SpatVector filter2;
-		sv.read_ogr(poDS, "", "", dempty, filter2, ""); 
+		sv.read_ogr(poDS, "", "", dempty, filter2, dialect); 
 
 		if (sv.size() > 0) {
 			*this = sv.v[0];
@@ -766,8 +767,8 @@ bool SpatVector::read(std::string fname, std::string layer, std::string query, s
 		}
 		return false;
     }
- // FIXME: include dialect #1750
-	bool success = read_ogr(poDS, layer, query, ext, filter, as_proxy, what, "");
+
+	bool success = read_ogr(poDS, layer, query, ext, filter, as_proxy, what, dialect);
 	if (poDS != NULL) GDALClose( poDS );
 	source = fname;
 	return success;
