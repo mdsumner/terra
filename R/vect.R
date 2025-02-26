@@ -61,7 +61,7 @@ setMethod("vect", signature(x="character"),
 		
 		dialect <- as.character(dialect[1L])
 		if (!nzchar(dialect)) {
-  		if (dialect %in% c("OGRSQL", "SQLITE")) {
+  		if (!dialect %in% c("OGRSQL", "SQLITE")) {
   		  message("dialect must be '' (default, 'OGRSQL') or 'SQLITE'")
   		  dialect <- ""
   		}
