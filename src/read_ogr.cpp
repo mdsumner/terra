@@ -460,7 +460,7 @@ bool layerQueryFilter(GDALDataset *&poDS, OGRLayer *&poLayer, std::string &layer
 			}
 		}
 	} else {
-		poLayer = poDS->ExecuteSQL(query.c_str(), NULL, NULL);
+		poLayer = poDS->ExecuteSQL(query.c_str(), NULL, dialect);
 		if (poLayer == NULL) {
 			errmsg = "Query failed";
 			return false;
