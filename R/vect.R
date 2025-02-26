@@ -54,11 +54,18 @@ setMethod("vect", signature(x="SpatGraticule"),
 
 
 setMethod("vect", signature(x="character"),
-	function(x, layer="", query="", extent=NULL, filter=NULL, crs="", proxy=FALSE, what="", opts=NULL) {
+	function(x, layer="", query="", extent=NULL, filter=NULL, crs="", proxy=FALSE, what="", opts=NULL, dialect = "") {
 
 		what <- trimws(tolower(what))
 		if (what != "") what <- match.arg(trimws(tolower(what)), c("geoms", "attributes"))
 		
+		dialect <- as.character(dialect[1L])
+		if (!nzchar(dialect)) {
+  		if (dialect %in% c("OGRSQL", "SQLITE")) {
+  		  message("dialect must be '' (default, 'OGRSQL') or 'SQLITE'")
+  		  dialect <- ""
+  		}
+		}
 		s <- substr(x[1], 1, 5)
 		if (s %in% c("POINT", "MULTI", "LINES", "POLYG", "EMPTY")) {
 			p <- methods::new("SpatVector")
@@ -108,7 +115,7 @@ setMethod("vect", signature(x="character"),
 			extent <- as.vector(ext(extent))
 		}
 		if (is.null(opts)) opts <- ""[0]
-		p@pntr$read(x, layer, query, extent, filter, proxy, what, opts)
+		p@pntr$read(x, layer, query, extent, filter, proxy, what, opts, dialect = dialect)
 		if (isTRUE(crs != "")) {
 			crs(p, warn=FALSE) <- crs
 		}

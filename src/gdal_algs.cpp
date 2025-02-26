@@ -1485,7 +1485,7 @@ SpatVector SpatRaster::polygonize(bool round, bool values, bool narm, bool aggre
 
 	std::vector<double> fext;
 	SpatVector fvct;
-	out.read_ogr(poDS, "", "", fext, fvct, false, "");
+	out.read_ogr(poDS, "", "", fext, fvct, false, "", "");
 	GDALClose(poDS);
 
 	if (aggregate && (out.nrow() > 0)) {

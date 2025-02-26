@@ -419,7 +419,7 @@ std::vector<std::string> SpatVector::layer_names(std::string filename) {
 }
 
 
-bool layerQueryFilter(GDALDataset *&poDS, OGRLayer *&poLayer, std::string &layer, std::string &query, std::vector<double> &ext, SpatVector &filter, std::string &errmsg, std::vector<std::string> &wrms) {
+bool layerQueryFilter(GDALDataset *&poDS, OGRLayer *&poLayer, std::string &layer, std::string &query, std::vector<double> &ext, SpatVector &filter, std::string &errmsg, std::vector<std::string> &wrms, std::string &dialect) {
 
 	if (query.empty()) {
 		if (layer.empty()) {
@@ -498,7 +498,7 @@ bool layerQueryFilter(GDALDataset *&poDS, OGRLayer *&poLayer, std::string &layer
 }
 
 
-bool SpatVector::read_ogr(GDALDataset *&poDS, std::string layer, std::string query, std::vector<double> ext, SpatVector filter, bool as_proxy, std::string what) {
+bool SpatVector::read_ogr(GDALDataset *&poDS, std::string layer, std::string query, std::vector<double> ext, SpatVector filter, bool as_proxy, std::string what, std::string dialect) {
 
 	if (poDS == NULL) {
 		setError("dataset is empty");
@@ -514,7 +514,7 @@ bool SpatVector::read_ogr(GDALDataset *&poDS, std::string layer, std::string que
 	std::string errmsg;
 	std::vector<std::string> wrnmsg;
 
-	if (!layerQueryFilter(poDS, poLayer, layer, query, ext, filter, errmsg, wrnmsg)) {
+	if (!layerQueryFilter(poDS, poLayer, layer, query, ext, filter, errmsg, wrnmsg, dialect)) {
 		setError(errmsg);
 		return false;
 	} else if (!wrnmsg.empty()) {
@@ -715,7 +715,7 @@ bool SpatVector::read_ogr(GDALDataset *&poDS, std::string layer, std::string que
 		SpatVectorCollection sv;
 		std::vector<double> dempty;
 		SpatVector filter2;
-		sv.read_ogr(poDS, "", "", dempty, filter2); 
+		sv.read_ogr(poDS, "", "", dempty, filter2, ""); 
 
 		if (sv.size() > 0) {
 			*this = sv.v[0];
@@ -746,7 +746,7 @@ bool SpatVector::read_ogr(GDALDataset *&poDS, std::string layer, std::string que
 }
 
 
-bool SpatVector::read(std::string fname, std::string layer, std::string query, std::vector<double> ext, SpatVector filter, bool as_proxy, std::string what, std::vector<std::string> options) {
+bool SpatVector::read(std::string fname, std::string layer, std::string query, std::vector<double> ext, SpatVector filter, bool as_proxy, std::string what, std::vector<std::string> options, std::string dialect) {
 
 	char ** openops = NULL;
 	for (size_t i=0; i<options.size(); i++) {
@@ -765,7 +765,8 @@ bool SpatVector::read(std::string fname, std::string layer, std::string query, s
 		}
 		return false;
     }
-	bool success = read_ogr(poDS, layer, query, ext, filter, as_proxy, what);
+ // FIXME: include dialect #1750
+	bool success = read_ogr(poDS, layer, query, ext, filter, as_proxy, what, "");
 	if (poDS != NULL) GDALClose( poDS );
 	source = fname;
 	return success;
@@ -774,7 +775,7 @@ bool SpatVector::read(std::string fname, std::string layer, std::string query, s
 SpatVector SpatVector::fromDS(GDALDataset *poDS) {
 	SpatVector out, fvct;
 	std::vector<double> fext;
-	out.read_ogr(poDS, "", "", fext, fvct, false, "");
+	out.read_ogr(poDS, "", "", fext, fvct, false, "", "");
 	return out;
 }
 
@@ -844,7 +845,7 @@ SpatVector::SpatVector(std::vector<std::string> wkt) {
 	}
 }
 
-bool SpatVectorCollection::read_ogr(GDALDataset *&poDS, std::string layer, std::string query, std::vector<double> extent, SpatVector filter) {
+bool SpatVectorCollection::read_ogr(GDALDataset *&poDS, std::string layer, std::string query, std::vector<double> extent, SpatVector filter, std::string dialect) {
 	
 	OGRLayer *poLayer;
 	poLayer = poDS->GetLayer(0);
@@ -852,7 +853,7 @@ bool SpatVectorCollection::read_ogr(GDALDataset *&poDS, std::string layer, std::
 	std::string errmsg;
 	std::vector<std::string> wrnmsg;
 
-	if (!layerQueryFilter(poDS, poLayer, layer, query, extent, filter, errmsg, wrnmsg)) {
+	if (!layerQueryFilter(poDS, poLayer, layer, query, extent, filter, errmsg, wrnmsg, dialect)) {
 		setError(errmsg);
 		return false;
 	} else if (!wrnmsg.empty()) {
@@ -969,7 +970,7 @@ bool SpatVectorCollection::read_ogr(GDALDataset *&poDS, std::string layer, std::
 }
 
 
-bool SpatVectorCollection::read(std::string fname, std::string layer, std::string query, std::vector<double> extent, SpatVector filter) {
+bool SpatVectorCollection::read(std::string fname, std::string layer, std::string query, std::vector<double> extent, SpatVector filter, std::string dialect) {
     //OGRRegisterAll();
     GDALDataset *poDS = static_cast<GDALDataset*>(GDALOpenEx( fname.c_str(), GDAL_OF_VECTOR, NULL, NULL, NULL ));
     if( poDS == NULL ) {
@@ -980,12 +981,14 @@ bool SpatVectorCollection::read(std::string fname, std::string layer, std::strin
 		}
 		return false;
     }
-	bool success = read_ogr(poDS, layer, query, extent, filter);
+  // FIXME: include dialect #1750
+	bool success = read_ogr(poDS, layer, query, extent, filter, "");
 	if (poDS != NULL) GDALClose( poDS );
 	return success;
 }
 
 
 SpatVectorCollection::SpatVectorCollection(std::string filename, std::string layer, std::string query, std::vector<double> extent, SpatVector filter) {
-	read(filename, layer, query, extent, filter);
+  //FIXME: allow dialect see #1750
+	read(filename, layer, query, extent, filter, "");
 }
